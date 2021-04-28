@@ -19,7 +19,7 @@ class AOA(nn.Module):
                 nn.Linear(self.inputdim, self.fc_dim),
                 self.dropout,
                 nn.Linear(self.fc_dim, self.fc_dim),
-                nn.Linear(self.fc_dim, opt.polarities_dim)
+                nn.Linear(self.fc_dim, opt.class_dim)
                 )
 
     def forward(self, inputs):

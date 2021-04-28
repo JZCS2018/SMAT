@@ -161,7 +161,7 @@ class Instructor:
         with torch.no_grad():
             for t_batch, t_sample_batched in enumerate(data_loader):
                 t_inputs = [t_sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
-                t_targets = t_sample_batched['polarity'].to(self.opt.device)
+                t_targets = t_sample_batched['class_n'].to(self.opt.device)
                 t_outputs = self.model(t_inputs)
 
                 n_correct += (torch.argmax(t_outputs, -1) == t_targets).sum().item()

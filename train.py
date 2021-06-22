@@ -102,7 +102,7 @@ class Instructor:
 
                 inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
                 outputs = self.model(inputs)
-                targets = sample_batched['polarity'].to(self.opt.device)
+                targets = sample_batched['class_n'].to(self.opt.device)
 
                 loss = criterion(outputs, targets)
                 loss.backward()

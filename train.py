@@ -4,6 +4,7 @@ import math
 import os
 import sys
 import time
+import json
 import numpy as np
 from time import strftime, localtime
 import random
@@ -117,7 +118,7 @@ class Instructor:
                     train_loss = loss_total / n_total
                     logger.info('loss: {:.4f}, acc: {:.4f}'.format(train_loss, train_acc))
 
-            val_acc, val_f1, report_val = self._evaluate_acc_f1(val_data_loader)
+            val_acc, val_f1, report_val, raw_outputs = self._evaluate_acc_f1(val_data_loader)
             logger.info('> val_acc: {:.4f}, val_f1: {:.4f}'.format(val_acc, report_val['class1']['f1-score']))
             logger.info('> report: {}'.format(report_val['class1']))
             print('timepassed:')
@@ -134,6 +135,8 @@ class Instructor:
                 
 
                 torch.save(self.model.state_dict(), path)
+                with open('./logs/'+self.opt.dataset + '/validation_raw_outputs.json', 'w') as f:
+                    json.dump(raw_outputs, f)
                 logger.info('>> saved: {}'.format(path))
             else:
                 if 'sgd' in self.opt.optimizer_rec:
@@ -154,6 +157,7 @@ class Instructor:
         return path
 
     def _evaluate_acc_f1(self, data_loader):
+        record ={}
         n_correct, n_total = 0, 0
         t_targets_all, t_outputs_all = None, None
         # switch model to evaluation mode
@@ -163,9 +167,12 @@ class Instructor:
                 t_inputs = [t_sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
                 t_targets = t_sample_batched['class_n'].to(self.opt.device)
                 t_outputs = self.model(t_inputs)
+                record['batch_'+str(t_batch)] = t_outputs.tolist()
+                # print(record)
 
                 n_correct += (torch.argmax(t_outputs, -1) == t_targets).sum().item()
                 n_total += len(t_outputs)
+
 
                 if t_targets_all is None:
                     t_targets_all = t_targets
@@ -174,11 +181,12 @@ class Instructor:
                     t_targets_all = torch.cat((t_targets_all, t_targets), dim=0)
                     t_outputs_all = torch.cat((t_outputs_all, t_outputs), dim=0)
 
+
         acc = n_correct / n_total
         f1 = metrics.f1_score(t_targets_all.cpu(), torch.argmax(t_outputs_all, -1).cpu(), labels=[0, 1], average='macro')
         report = classification_report(t_targets_all.cpu(), torch.argmax(t_outputs_all, -1).cpu(), target_names=['class0','class1'], output_dict=True, digits = 4)
         # print(report)
-        return acc, f1, report
+        return acc, f1, report, record
 
     def run(self):
         # Loss and Optimizer
@@ -208,7 +216,9 @@ class Instructor:
         best_model_path = self._train(criterion, optimizer, train_data_loader, val_data_loader, self.opt.lrshrink, self.opt.minlr)
         self.model.load_state_dict(torch.load(best_model_path))
         self.model.eval()
-        test_acc, test_f1 , report_test = self._evaluate_acc_f1(test_data_loader)
+        test_acc, test_f1 , report_test, raw_outputs = self._evaluate_acc_f1(test_data_loader)
+        with open('./logs/'+self.opt.dataset + '/test_raw_outputs.json', 'w') as f:
+            json.dump(raw_outputs, f)
         logger.info('>> test_acc: {:.4f}, test_f1: {:.4f}'.format(test_acc, test_f1))
         logger.info('> report: {}'.format(report_test['class1']))
         # print(report_test)
@@ -219,7 +229,7 @@ def main():
     # Hyper Parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='aoa', type=str, help = 'aoa for AOA, abl for Ablation, sela for selfattention')
-    parser.add_argument('--dataset', default='webform', type=str, help='cis, cim, ims, cms')
+    parser.add_argument('--dataset', default='cms', type=str, help='cis, cim, ims, cms')
     parser.add_argument('--optimizer', default='sgd', type=str)
     parser.add_argument("--lrshrink", type=float, default=5, help="shrink factor for sgd")
     parser.add_argument("--decay", type=float, default=0.99, help="lr decay")
